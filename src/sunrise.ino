@@ -4,10 +4,7 @@ int latchPin = D5;
 int clockPin = D4;
 int dataPin = D3;
 
-int counte
-
-    void
-    setup()
+void setup()
 {
   pinMode(latchPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
