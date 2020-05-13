@@ -1,45 +1,62 @@
 
 //set up the pins for communication with the shift register
-int latchPin = D4;
-int clockPin = D5;
+int latchPin = D5;
+int clockPin = D4;
 int dataPin = D3;
 
-int hourTens = 0;
-int hourUnits = 0;
-int minsTens = 0;
-int minsUnits = 0;
+int counte
 
-void setup()
+    void
+    setup()
 {
   pinMode(latchPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
   pinMode(clockPin, OUTPUT);
+
+  Particle.function("utc-offset", setUTCOffset);
+}
+
+int setUTCOffset(String offset)
+{
+  int offsetInt = offset.toInt();
+  Time.zone(offsetInt);
+  return 1;
 }
 
 void loop()
 {
-  displayTime(); // send the time to the shift register
+  displayTime();
   delay(1000);
 }
 
 void displayTime()
 {
-  uint16_t nixieTime = 0;
-
-  int mins = Time.minute();
-  int minsUnits = mins % 10;
-  int minsTens = mins - minsUnits;
-
   int hours = Time.hour();
   int hourUnits = hours % 10;
-  int hourTens = hours - hourUnits;
+  int hourTens = (hours / 10) % 10;
+  int mins = Time.minute();
+  int minsUnits = mins % 10;
+  int minsTens = (mins / 10) % 10;
 
-  nixieTime += minsUnits;      // No shifting needed for the minsUnits = 1001
-  nixieTime += minsTens << 4;  // Shift minsTens 4 bits, and add it on: = 00001001
-  nixieTime += hourUnits << 8; // Shift 2 places, or 8 bits = 100100001001
-  nixieTime += hourTens << 12; // shift 3 places, or 12 bites = 0000100100001001
+  displayDigits(hourTens, hourUnits, minsTens, minsUnits);
+}
 
+// Anything in the 10,000s or higher will be ignored
+void displayNumber(uint num)
+{
+  uint8_t a = (num % 10000) / 1000;
+  uint8_t b = (num % 1000) / 100;
+  uint8_t c = (num % 100) / 10;
+  uint8_t d = (num % 10);
+
+  displayDigits(a, b, c, d);
+}
+
+// The digits on sunrise read AB:CD
+void displayDigits(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
+{
   digitalWrite(latchPin, LOW);
-  shiftOut(dataPin, clockPin, LSBFIRST, nixieTime); //shiftOut(dataPin, clockPin, bitOrder, value)
+  shiftOut(dataPin, clockPin, MSBFIRST, c + (d << 4));
+  shiftOut(dataPin, clockPin, MSBFIRST, a + (b << 4));
   digitalWrite(latchPin, HIGH);
 }
