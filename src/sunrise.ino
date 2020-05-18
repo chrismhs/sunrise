@@ -1,3 +1,7 @@
+#include "DFPlayer.h"
+
+DFPlayer dfPlayer;
+
 #define CLOCK_MODE 1
 #define ALARM_SET_MODE 2
 
@@ -28,11 +32,14 @@ int mode = CLOCK_MODE;
 //Set up alarm
 uint alarmTime = 0;
 bool alarmSet = false;
+int isPlaying = FALSE;
+int offButton = D3;
 
 void setup()
 {
 
-  Serial.begin(9600);
+  Serial.begin(115200);
+  Serial1.begin(9600);
   delay(1000);
   Serial.println(encoderPos);
 
@@ -52,6 +59,12 @@ void setup()
   pinMode(encoderB, INPUT_PULLUP);
   attachInterrupt(encoderA, doEncoderA, CHANGE);
   attachInterrupt(encoderB, doEncoderB, CHANGE);
+
+  //Alarm off button
+  pinMode(offButton, INPUT);
+  attachInterrupt(offButton, stopAlarm, RISING);
+
+  dfPlayer.setVolume(25);
 }
 
 int setUTCOffset(String offset)
@@ -72,6 +85,7 @@ void loop()
     displayTime();
     break;
   case ALARM_SET_MODE:
+    alarmSet = false;
     setAlarm(alarmTime);
     break;
   }
@@ -84,7 +98,11 @@ void loop()
 
   if (alarmTime == currentTime && alarmSet)
   {
-    soundAlarm();
+    delay(300);
+    if (alarmTime == currentTime && alarmSet)
+    {
+      soundAlarm();
+    }
   }
 
   delay(50);
@@ -111,6 +129,7 @@ void modeSwitch()
 
 void displayTime()
 {
+
   int hours = Time.hour();
   int hourUnits = hours % 10;
   int hourTens = (hours / 10) % 10;
@@ -124,6 +143,16 @@ void displayTime()
 
 void setAlarm(uint num)
 {
+
+  // if (num >= 2359)
+  // {
+  //   num = 0;
+  // }
+
+  // if (num <= -1)
+  // {
+  //   num = 2359;
+  // }
 
   uint8_t a = (num % 10000) / 1000;
   uint8_t b = (num % 1000) / 100;
@@ -175,6 +204,21 @@ void doEncoderB()
 }
 
 // Alarm
+
 void soundAlarm()
 {
+  if (isPlaying == FALSE)
+  {
+    dfPlayer.repeatPlay(1);
+    dfPlayer.playTrack(1);
+    isPlaying = TRUE;
+  }
+  // }
+}
+
+void stopAlarm()
+{
+  dfPlayer.pause();
+  isPlaying = FALSE;
+  alarmSet = FALSE;
 }
