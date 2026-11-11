@@ -1,5 +1,8 @@
 #include "DFPlayer.h"
 
+// Run setup()/loop() straight away, even when Wi-Fi or the cloud is unavailable
+SYSTEM_THREAD(ENABLED);
+
 DFPlayer dfPlayer;
 
 #define CLOCK_MODE 1
@@ -29,6 +32,12 @@ int dataPin = D0;
 
 int mode = CLOCK_MODE;
 
+// BCD values above 9 turn all cathodes off on the 74141 decoders
+#define BLANK 15
+
+// UTC offset is saved to EEPROM so it survives a reboot
+#define UTC_OFFSET_ADDR 0
+
 //Set up alarm
 uint alarmTime = 0;
 bool alarmSet = false;
@@ -38,17 +47,25 @@ int offButton = D3;
 void setup()
 {
 
+  //Shift setup
+  pinMode(latchPin, OUTPUT);
+  pinMode(dataPin, OUTPUT);
+  pinMode(clockPin, OUTPUT);
+  displayDigits(BLANK, BLANK, BLANK, BLANK); // clear whatever the shift registers powered up with
+
   Serial.begin(115200);
   Serial1.begin(9600);
   delay(1000);
   Serial.println(encoderPos);
 
-  Particle.function("utc-offset", setUTCOffset);
+  // Stored as offset + 12 in one byte; an erased EEPROM reads 0xFF and is ignored
+  uint8_t savedOffset = EEPROM.read(UTC_OFFSET_ADDR);
+  if (savedOffset <= 26)
+  {
+    Time.zone(savedOffset - 12);
+  }
 
-  //Shift setup
-  pinMode(latchPin, OUTPUT);
-  pinMode(dataPin, OUTPUT);
-  pinMode(clockPin, OUTPUT);
+  Particle.function("utc-offset", setUTCOffset);
 
   //Mode switch
   pinMode(encoderBtn, INPUT);
@@ -70,7 +87,12 @@ void setup()
 int setUTCOffset(String offset)
 {
   int offsetInt = offset.toInt();
+  if (offsetInt < -12 || offsetInt > 14)
+  {
+    return -1;
+  }
   Time.zone(offsetInt);
+  EEPROM.write(UTC_OFFSET_ADDR, offsetInt + 12);
   return 1;
 }
 
@@ -129,6 +151,12 @@ void modeSwitch()
 
 void displayTime()
 {
+  // Stay blank until the cloud has synced the clock, rather than showing 00:00
+  if (!Time.isValid())
+  {
+    displayDigits(BLANK, BLANK, BLANK, BLANK);
+    return;
+  }
 
   int hours = Time.hour();
   int hourUnits = hours % 10;
